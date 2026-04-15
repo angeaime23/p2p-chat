@@ -3,52 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat P2P - Version fonctionnelle</title>
+    <title>Chat P2P - Simple et fiable</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>💬 Chat P2P</h1>
-            <p>Connexion directe - Testé sur Chrome, Edge, Firefox</p>
+            <p>100% fonctionnel - Copiez/collez l'offre WebRTC</p>
         </div>
 
-        <div class="room-section">
-            <h2>1. Choisissez un pseudo</h2>
-            <div class="room-controls">
-                <input type="text" id="username" placeholder="Votre pseudo" value="User" maxlength="20">
-            </div>
-            
-            <h2>2. Créer ou rejoindre un salon</h2>
-            <div class="room-controls">
-                <input type="text" id="roomName" placeholder="Nom du salon (ex: monchat)" value="salon" maxlength="20">
-                <button id="createBtn">🎯 Créer le salon</button>
-                <button id="joinBtn">🔗 Rejoindre un salon</button>
-            </div>
-            <div id="roomStatus" class="status"></div>
+        <div class="mode-selector">
+            <button class="mode-btn active" onclick="setMode('offer')">📤 Je crée le chat (Hôte)</button>
+            <button class="mode-btn" onclick="setMode('answer')">📥 Je rejoins le chat (Invité)</button>
         </div>
 
-        <div id="chatArea" style="display: none;">
-            <div class="chat-info">
-                <span>📍 Salon : <strong id="currentRoom"></strong> | 👤 Pseudo: <strong id="currentUsername"></strong></span>
-                <button id="leaveBtn" class="leave-btn">❌ Quitter</button>
+        <!-- Panneau Hôte -->
+        <div id="offerPanel" class="panel active">
+            <div class="username-input">
+                <input type="text" id="offerUsername" placeholder="Votre pseudo" value="Hôte">
             </div>
             
-            <div id="connectionStatus" class="connection-status">
-                🔄 En attente de connexion...
+            <div class="offer-area">
+                <h3>📋 Étape 1 : Copiez cette offre</h3>
+                <textarea id="offerText" rows="5" readonly placeholder="Cliquez sur 'Générer l'offre'"></textarea>
+                <button id="generateOfferBtn" onclick="generateOffer()">🔧 Générer l'offre</button>
+                <button id="copyOfferBtn" class="copy-btn" onclick="copyOffer()" disabled>📋 Copier l'offre</button>
             </div>
-            <div id="peerIdDisplay" class="peer-id-info"></div>
 
-            <div id="messages" class="messages"></div>
+            <div class="answer-area">
+                <h3>📥 Étape 2 : Collez la réponse de l'invité</h3>
+                <textarea id="answerText" rows="5" placeholder="Collez ici la réponse de l'autre personne..."></textarea>
+                <button id="submitAnswerBtn" onclick="submitAnswer()" disabled>✅ Envoyer la réponse</button>
+            </div>
 
+            <div id="offerStatus" class="status waiting">⏳ En attente de connexion...</div>
+        </div>
+
+        <!-- Panneau Invité -->
+        <div id="answerPanel" class="panel">
+            <div class="username-input">
+                <input type="text" id="answerUsername" placeholder="Votre pseudo" value="Invité">
+            </div>
+            
+            <div class="offer-area">
+                <h3>📥 Étape 1 : Collez l'offre de l'hôte</h3>
+                <textarea id="receivedOfferText" rows="5" placeholder="Collez ici l'offre de l'hôte..."></textarea>
+                <button id="processOfferBtn" onclick="processOffer()">🔄 Traiter l'offre</button>
+            </div>
+
+            <div class="answer-area">
+                <h3>📤 Étape 2 : Copiez cette réponse</h3>
+                <textarea id="responseText" rows="5" readonly placeholder="La réponse apparaîtra ici..."></textarea>
+                <button id="copyResponseBtn" class="copy-btn" onclick="copyResponse()" disabled>📋 Copier la réponse</button>
+            </div>
+
+            <div id="answerStatus" class="status waiting">⏳ En attente de l'offre...</div>
+        </div>
+
+        <!-- Zone de chat (commune) -->
+        <div id="chatContainer" class="chat-area" style="display: none;">
+            <div class="messages" id="messages"></div>
             <div class="input-area">
-                <input type="text" id="messageInput" placeholder="Votre message..." maxlength="500">
-                <button id="sendBtn">📤 Envoyer</button>
+                <input type="text" id="messageInput" placeholder="Votre message..." disabled>
+                <button id="sendBtn" disabled>📤 Envoyer</button>
             </div>
+        </div>
+
+        <div class="steps">
+            <strong>📖 Mode d'emploi :</strong>
+            <ol>
+                <li>Choisissez votre rôle : <strong>Hôte</strong> (celui qui crée le chat) ou <strong>Invité</strong></li>
+                <li><strong>Hôte</strong> : cliquez "Générer l'offre" → copiez le texte → envoyez-le à l'invité (WhatsApp, SMS, etc.)</li>
+                <li><strong>Invité</strong> : collez l'offre reçue → cliquez "Traiter l'offre" → copiez la réponse → envoyez-la à l'hôte</li>
+                <li><strong>Hôte</strong> : collez la réponse reçue → cliquez "Envoyer la réponse"</li>
+                <li>🎉 La connexion s'établit automatiquement ! Vous pouvez discuter.</li>
+            </ol>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
     <script src="chat.js"></script>
 </body>
 </html>
