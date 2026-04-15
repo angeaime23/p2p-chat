@@ -12,7 +12,7 @@ body {
 }
 
 .container {
-    max-width: 900px;
+    max-width: 1000px;
     margin: 0 auto;
     background: white;
     border-radius: 20px;
@@ -37,131 +37,117 @@ body {
     font-size: 0.9em;
 }
 
-.room-section {
-    padding: 30px;
-    border-bottom: 1px solid #eee;
-}
-
-.room-section h2 {
-    color: #333;
-    margin-bottom: 15px;
-    font-size: 1.2em;
-}
-
-.room-controls {
+.mode-selector {
     display: flex;
     gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 15px;
+    padding: 20px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #ddd;
 }
 
-.room-controls input {
+.mode-btn {
     flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.mode-btn.active {
+    background: #667eea;
+    color: white;
+}
+
+.mode-btn:not(.active) {
+    background: #e0e0e0;
+    color: #666;
+}
+
+.panel {
+    padding: 30px;
+    display: none;
+}
+
+.panel.active {
+    display: block;
+}
+
+.offer-area, .answer-area {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+textarea {
+    width: 100%;
     padding: 12px;
     border: 2px solid #ddd;
     border-radius: 10px;
-    font-size: 16px;
-    transition: border-color 0.3s;
+    font-family: monospace;
+    font-size: 12px;
+    resize: vertical;
+    margin: 10px 0;
 }
 
-.room-controls input:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
-.room-controls button {
-    padding: 12px 24px;
+button {
+    background: #667eea;
+    color: white;
     border: none;
+    padding: 12px 24px;
     border-radius: 10px;
-    font-size: 16px;
     cursor: pointer;
-    transition: transform 0.2s, opacity 0.2s;
+    font-size: 16px;
     font-weight: bold;
+    margin: 5px;
+    transition: transform 0.2s;
 }
 
-.room-controls button:hover {
+button:hover {
     transform: translateY(-2px);
 }
 
-#createBtn {
-    background: #4CAF50;
-    color: white;
+button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
 }
 
-#joinBtn {
-    background: #2196F3;
-    color: white;
+.copy-btn {
+    background: #4CAF50;
 }
 
 .status {
-    margin-top: 15px;
     padding: 10px;
+    margin: 10px 0;
     border-radius: 8px;
     font-size: 14px;
+}
+
+.status.connected {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status.waiting {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
 }
 
 .status.error {
-    background: #ffebee;
-    color: #c62828;
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
 }
 
-.status.success {
-    background: #e8f5e9;
-    color: #2e7d32;
-}
-
-.status.info {
-    background: #e3f2fd;
-    color: #1565c0;
-}
-
-.status.warning {
-    background: #fff3e0;
-    color: #e65100;
-}
-
-.chat-info {
-    background: #f5f5f5;
-    padding: 15px 30px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #ddd;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.leave-btn {
-    background: #ff5252;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: background 0.3s;
-}
-
-.leave-btn:hover {
-    background: #ff1744;
-}
-
-.connection-status {
-    padding: 12px 30px;
-    background: #fff3cd;
-    color: #856404;
-    font-size: 14px;
-    text-align: center;
-}
-
-.peer-id-info {
-    padding: 8px 30px;
-    background: #e3f2fd;
-    color: #1565c0;
-    font-size: 12px;
-    text-align: center;
-    font-family: monospace;
-    border-bottom: 1px solid #bbdef5;
+.chat-area {
+    border-top: 1px solid #ddd;
+    background: white;
 }
 
 .messages {
@@ -173,18 +159,12 @@ body {
 
 .message {
     margin-bottom: 15px;
-    animation: fadeIn 0.3s ease-in;
+    animation: fadeIn 0.3s;
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .message.system {
@@ -209,7 +189,6 @@ body {
     padding: 10px 15px;
     border-radius: 18px;
     word-wrap: break-word;
-    position: relative;
 }
 
 .message.self .message-content {
@@ -231,9 +210,8 @@ body {
     color: #999;
 }
 
-.message-meta .username {
-    font-weight: bold;
-    margin-right: 8px;
+.message-meta strong {
+    color: #667eea;
 }
 
 .input-area {
@@ -268,29 +246,90 @@ body {
     transition: background 0.3s;
 }
 
-.input-area button:hover {
+.input-area button:hover:not(:disabled) {
     background: #5a67d8;
 }
 
+.input-area button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.username-input {
+    margin-bottom: 20px;
+}
+
+.username-input input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    font-size: 16px;
+}
+
+.username-input input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+h3 {
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 1.1em;
+}
+
+.steps {
+    background: #e3f2fd;
+    padding: 20px;
+    border-radius: 10px;
+    margin: 20px;
+    font-size: 14px;
+    border-left: 4px solid #2196F3;
+}
+
+.steps strong {
+    color: #1976D2;
+}
+
+.steps ol {
+    margin-left: 20px;
+    margin-top: 10px;
+}
+
+.steps li {
+    margin: 8px 0;
+    line-height: 1.4;
+}
+
 @media (max-width: 600px) {
-    .room-controls {
-        flex-direction: column;
-    }
-    
-    .message-content {
-        max-width: 85%;
+    body {
+        padding: 10px;
     }
     
     .container {
         border-radius: 10px;
     }
     
-    .header, .room-section {
+    .header, .panel {
         padding: 20px;
     }
     
-    .chat-info {
+    .mode-selector {
         flex-direction: column;
-        text-align: center;
+        gap: 5px;
+    }
+    
+    .message-content {
+        max-width: 85%;
+    }
+    
+    button {
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+    
+    .steps {
+        margin: 15px;
+        padding: 15px;
     }
 }
