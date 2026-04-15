@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat P2P - Sans Serveur</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💬 Chat P2P</h1>
+            <p>Connexion directe entre navigateurs - 100% sans serveur</p>
+        </div>
+
+        <div class="room-section">
+            <h2>Créer ou rejoindre un salon</h2>
+            <div class="room-controls">
+                <input type="text" id="roomName" placeholder="Nom du salon (ex: monchat)" value="salon" maxlength="20">
+                <button id="createBtn">🎯 Créer un salon</button>
+                <button id="joinBtn">🔗 Rejoindre un salon</button>
+            </div>
+            <div id="roomStatus" class="status"></div>
+        </div>
+
+        <div id="chatArea" style="display: none;">
+            <div class="chat-info">
+                <span>📍 Salon : <strong id="currentRoom"></strong></span>
+                <button id="leaveBtn" class="leave-btn">❌ Quitter</button>
+            </div>
+            
+            <div id="connectionStatus" class="connection-status">
+                🔄 En attente de connexion...
+            </div>
+
+            <div id="messages" class="messages"></div>
+
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Votre message..." maxlength="500">
+                <button id="sendBtn">📤 Envoyer</button>
+            </div>
+
+            <div class="info">
+                💡 Astuce : Partager le lien avec <strong>?room=nomdusalon</strong> permet à quelqu'un de vous rejoindre directement !
+            </div>
+        </div>
+    </div>
+
+    <!-- Bibliothèque PeerJS (serveur de signalement gratuit) -->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="chat.js"></script>
+</body>
+</html>
