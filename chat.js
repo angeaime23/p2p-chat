@@ -1,246 +1,311 @@
 // Configuration
-let peer = null;
-let currentRoom = null;
-let connections = [];
+let localPeerConnection = null;
+let dataChannel = null;
+let isHost = true;
+let myUsername = '';
+let otherUsername = '';
+let isConnected = false;
 
 // Éléments DOM
-const roomNameInput = document.getElementById('roomName');
-const createBtn = document.getElementById('createBtn');
-const joinBtn = document.getElementById('joinBtn');
-const roomStatus = document.getElementById('roomStatus');
-const chatArea = document.getElementById('chatArea');
-const currentRoomSpan = document.getElementById('currentRoom');
-const leaveBtn = document.getElementById('leaveBtn');
-const connectionStatus = document.getElementById('connectionStatus');
+const offerPanel = document.getElementById('offerPanel');
+const answerPanel = document.getElementById('answerPanel');
+const chatContainer = document.getElementById('chatContainer');
 const messagesDiv = document.getElementById('messages');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
 
-// Vérifier si un salon est spécifié dans l'URL
-const urlParams = new URLSearchParams(window.location.search);
-const roomFromUrl = urlParams.get('room');
-if (roomFromUrl) {
-    roomNameInput.value = roomFromUrl;
-    setTimeout(() => joinRoom(), 500);
+// Configuration STUN (serveurs gratuits pour la connexion P2P)
+const configuration = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        { urls: 'stun:stun.stunprotocol.org:3478' }
+    ]
+};
+
+// Changer de mode (Hôte / Invité)
+function setMode(mode) {
+    isHost = (mode === 'offer');
+    
+    // Mettre à jour les boutons
+    document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+    if (mode === 'offer') {
+        document.querySelector('.mode-btn:first-child').classList.add('active');
+        offerPanel.classList.add('active');
+        answerPanel.classList.remove('active');
+    } else {
+        document.querySelector('.mode-btn:last-child').classList.add('active');
+        offerPanel.classList.remove('active');
+        answerPanel.classList.add('active');
+    }
+    
+    // Fermer toute connexion existante
+    if (localPeerConnection) {
+        localPeerConnection.close();
+        localPeerConnection = null;
+    }
+    dataChannel = null;
+    isConnected = false;
+    chatContainer.style.display = 'none';
+    
+    // Réinitialiser les champs
+    document.getElementById('offerText').value = '';
+    document.getElementById('answerText').value = '';
+    document.getElementById('receivedOfferText').value = '';
+    document.getElementById('responseText').value = '';
 }
 
-// Gestionnaires d'événements
-createBtn.addEventListener('click', createRoom);
-joinBtn.addEventListener('click', joinRoom);
-leaveBtn.addEventListener('click', leaveRoom);
-sendBtn.addEventListener('click', sendMessage);
-messageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendMessage();
-});
-
-// Créer un salon (hôte)
-async function createRoom() {
-    const roomName = roomNameInput.value.trim();
-    if (!roomName) {
-        showStatus('Veuillez entrer un nom de salon', 'error');
-        return;
-    }
-
-    if (peer) {
-        peer.destroy();
-    }
-
-    showStatus('🔧 Création du salon...', 'info');
-    
-    // Générer un ID unique pour le peer
-    const peerId = generatePeerId();
-    
-    peer = new Peer(peerId, {
-        debug: 2,
-        config: {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
-            ]
-        }
-    });
-
-    peer.on('open', (id) => {
-        showStatus(`✅ Salon "${roomName}" créé !`, 'success');
-        currentRoom = roomName;
-        currentRoomSpan.textContent = roomName;
-        chatArea.style.display = 'block';
-        roomStatus.innerHTML = '';
-        
-        // Mettre à jour l'URL sans recharger la page
-        const newUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomName)}`;
-        window.history.pushState({}, '', newUrl);
-        
-        // Attendre les connexions
-        connectionStatus.innerHTML = '🎯 En attente de quelqu\'un qui rejoint...<br><small>Partagez ce lien pour inviter :</small><br>' + 
-            `<strong>${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomName)}</strong>`;
-        
-        addSystemMessage(`Salon "${roomName}" créé. Partagez le lien pour inviter quelqu'un !`);
-    });
-
-    peer.on('connection', (conn) => {
-        handleNewConnection(conn);
-    });
-
-    peer.on('error', (err) => {
-        console.error('Peer error:', err);
-        showStatus('Erreur de connexion. Rafraîchissez la page.', 'error');
-    });
-}
-
-// Rejoindre un salon
-async function joinRoom() {
-    const roomName = roomNameInput.value.trim();
-    if (!roomName) {
-        showStatus('Veuillez entrer un nom de salon', 'error');
-        return;
-    }
-
-    if (peer) {
-        peer.destroy();
-    }
-
-    showStatus(`🔍 Recherche du salon "${roomName}"...`, 'info');
-    
-    const peerId = generatePeerId();
-    peer = new Peer(peerId, {
-        debug: 2,
-        config: {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
-            ]
-        }
-    });
-
-    peer.on('open', (id) => {
-        currentRoom = roomName;
-        currentRoomSpan.textContent = roomName;
-        chatArea.style.display = 'block';
-        roomStatus.innerHTML = '';
-        
-        connectionStatus.innerHTML = '🔄 Tentative de connexion...';
-        
-        // La connexion se fait via l'ID du salon (qui doit être le même que l'hôte)
-        // Pour simplifier, on utilise l'ID du salon comme ID du peer de l'hôte
-        const hostPeerId = roomName; // L'hôte utilise roomName comme ID
-        
-        const conn = peer.connect(hostPeerId, {
-            reliable: true
-        });
-        
-        handleNewConnection(conn);
-        
-        // Mettre à jour l'URL
-        const newUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomName)}`;
-        window.history.pushState({}, '', newUrl);
-    });
-
-    peer.on('error', (err) => {
-        console.error('Peer error:', err);
-        if (err.type === 'peer-unavailable') {
-            showStatus(`Le salon "${roomName}" n'existe pas ou est inaccessible.`, 'error');
+// Attendre que tous les ICE candidates soient collectés
+function waitForIceGathering(pc) {
+    return new Promise((resolve) => {
+        if (pc.iceGatheringState === 'complete') {
+            resolve(pc.localDescription);
         } else {
-            showStatus('Erreur de connexion. Vérifiez que l\'hôte est en ligne.', 'error');
-        }
-    });
-}
-
-// Gérer une nouvelle connexion
-function handleNewConnection(conn) {
-    connections.push(conn);
-    
-    conn.on('open', () => {
-        connectionStatus.innerHTML = '✅ Connecté ! Vous pouvez maintenant discuter.';
-        addSystemMessage('Un utilisateur a rejoint le chat');
-        
-        // Envoyer l'historique des messages (optionnel)
-        // Pour l'instant, juste un message de bienvenue
-        sendToPeer(conn, {
-            type: 'system',
-            text: 'a rejoint le chat'
-        });
-    });
-    
-    conn.on('data', (data) => {
-        handleIncomingMessage(data, conn);
-    });
-    
-    conn.on('close', () => {
-        // Retirer la connexion de la liste
-        const index = connections.indexOf(conn);
-        if (index > -1) {
-            connections.splice(index, 1);
-        }
-        addSystemMessage('Un utilisateur a quitté le chat');
-        
-        if (connections.length === 0) {
-            connectionStatus.innerHTML = '🔌 Plus personne dans le chat. En attente de nouveaux participants...';
-        }
-    });
-    
-    conn.on('error', (err) => {
-        console.error('Connection error:', err);
-    });
-}
-
-// Envoyer un message à tous les pairs connectés
-function sendMessageToAll(message) {
-    connections.forEach(conn => {
-        if (conn.open) {
-            sendToPeer(conn, {
-                type: 'message',
-                text: message,
-                timestamp: Date.now()
+            pc.addEventListener('icegatheringstatechange', () => {
+                if (pc.iceGatheringState === 'complete') {
+                    resolve(pc.localDescription);
+                }
             });
         }
     });
 }
 
-// Envoyer des données à un pair spécifique
-function sendToPeer(conn, data) {
-    if (conn && conn.open) {
-        conn.send(data);
+// Configurer les handlers du data channel
+function setupDataChannelHandlers() {
+    if (!dataChannel) return;
+    
+    dataChannel.onopen = () => {
+        console.log('Data channel ouvert');
+        if (!isConnected) {
+            isConnected = true;
+            startChat();
+            // Envoyer le pseudo à l'autre utilisateur
+            dataChannel.send(JSON.stringify({
+                type: 'info',
+                username: myUsername
+            }));
+        }
+    };
+    
+    dataChannel.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'info') {
+            otherUsername = data.username;
+            addSystemMessage(`${otherUsername} a rejoint le chat`);
+        } else if (data.type === 'message') {
+            addMessage(data.text, false, data.username);
+        }
+    };
+    
+    dataChannel.onclose = () => {
+        addSystemMessage('🔌 La connexion a été fermée');
+        messageInput.disabled = true;
+        sendBtn.disabled = true;
+        isConnected = false;
+    };
+    
+    dataChannel.onerror = (error) => {
+        console.error('Data channel error:', error);
+        addSystemMessage('❌ Erreur de connexion');
+    };
+}
+
+// Démarrer l'interface de chat
+function startChat() {
+    chatContainer.style.display = 'block';
+    messageInput.disabled = false;
+    sendBtn.disabled = false;
+    messageInput.focus();
+    
+    if (isHost) {
+        updateStatus('offerStatus', 'connected', '✅ Connecté ! Vous pouvez discuter.');
+    } else {
+        updateStatus('answerStatus', 'connected', '✅ Connecté ! Vous pouvez discuter.');
+    }
+    
+    addSystemMessage('Chat connecté ! Vous pouvez envoyer des messages.');
+}
+
+// ============ FONCTIONS HÔTE ============
+
+// Générer l'offre (Hôte)
+async function generateOffer() {
+    myUsername = document.getElementById('offerUsername').value.trim() || 'Hôte';
+    
+    // Réinitialiser
+    if (localPeerConnection) {
+        localPeerConnection.close();
+    }
+    
+    localPeerConnection = new RTCPeerConnection(configuration);
+    
+    // Créer le data channel
+    dataChannel = localPeerConnection.createDataChannel('chat');
+    setupDataChannelHandlers();
+    
+    // Créer l'offre
+    try {
+        const offer = await localPeerConnection.createOffer();
+        await localPeerConnection.setLocalDescription(offer);
+        
+        // Attendre que les ICE candidates soient rassemblées
+        const offerWithIce = await waitForIceGathering(localPeerConnection);
+        
+        // Afficher l'offre
+        const offerTextarea = document.getElementById('offerText');
+        offerTextarea.value = JSON.stringify(offerWithIce);
+        
+        document.getElementById('copyOfferBtn').disabled = false;
+        document.getElementById('submitAnswerBtn').disabled = false;
+        
+        updateStatus('offerStatus', 'waiting', '📤 Offre générée ! Copiez-la et envoyez-la à l\'invité, puis attendez sa réponse.');
+        
+        // Effacer l'ancienne réponse
+        document.getElementById('answerText').value = '';
+        
+    } catch (error) {
+        console.error('Erreur lors de la génération de l\'offre:', error);
+        updateStatus('offerStatus', 'error', '❌ Erreur lors de la génération de l\'offre. Rafraîchissez la page.');
     }
 }
 
-// Gérer les messages entrants
-function handleIncomingMessage(data, fromConn) {
-    if (data.type === 'message') {
-        addMessage(data.text, false, data.timestamp);
-    } else if (data.type === 'system') {
-        addSystemMessage(`👤 ${data.text}`);
+// Copier l'offre
+function copyOffer() {
+    const offerText = document.getElementById('offerText').value;
+    if (!offerText) {
+        alert('Générez d\'abord une offre');
+        return;
+    }
+    navigator.clipboard.writeText(offerText).then(() => {
+        alert('✅ Offre copiée ! Envoyez-la à l\'autre personne par SMS, WhatsApp, etc.');
+    }).catch(() => {
+        alert('Copie manuelle : sélectionnez le texte et faites Ctrl+C');
+    });
+}
+
+// Envoyer la réponse (Hôte)
+async function submitAnswer() {
+    const answerText = document.getElementById('answerText').value;
+    if (!answerText) {
+        alert('Collez d\'abord la réponse de l\'invité');
+        return;
+    }
+    
+    try {
+        const answer = JSON.parse(answerText);
+        await localPeerConnection.setRemoteDescription(answer);
+        updateStatus('offerStatus', 'connected', '✅ Connexion établie ! Attente de l\'autre utilisateur...');
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur: La réponse n\'est pas valide. Vérifiez que vous avez bien copié tout le texte.');
+        updateStatus('offerStatus', 'error', '❌ Réponse invalide. Réessayez.');
     }
 }
+
+// ============ FONCTIONS INVITÉ ============
+
+// Traiter l'offre (Invité)
+async function processOffer() {
+    myUsername = document.getElementById('answerUsername').value.trim() || 'Invité';
+    const offerText = document.getElementById('receivedOfferText').value;
+    
+    if (!offerText) {
+        alert('Collez d\'abord l\'offre de l\'hôte');
+        return;
+    }
+    
+    try {
+        const offer = JSON.parse(offerText);
+        
+        // Réinitialiser
+        if (localPeerConnection) {
+            localPeerConnection.close();
+        }
+        
+        localPeerConnection = new RTCPeerConnection(configuration);
+        
+        // Gérer le data channel entrant
+        localPeerConnection.ondatachannel = (event) => {
+            dataChannel = event.channel;
+            setupDataChannelHandlers();
+        };
+        
+        await localPeerConnection.setRemoteDescription(offer);
+        
+        const answer = await localPeerConnection.createAnswer();
+        await localPeerConnection.setLocalDescription(answer);
+        
+        const answerWithIce = await waitForIceGathering(localPeerConnection);
+        
+        // Afficher la réponse
+        const responseTextarea = document.getElementById('responseText');
+        responseTextarea.value = JSON.stringify(answerWithIce);
+        document.getElementById('copyResponseBtn').disabled = false;
+        
+        updateStatus('answerStatus', 'waiting', '📤 Réponse générée ! Copiez-la et envoyez-la à l\'hôte.');
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur: L\'offre n\'est pas valide. Demandez à l\'hôte de générer une nouvelle offre.');
+        updateStatus('answerStatus', 'error', '❌ Offre invalide. Réessayez.');
+    }
+}
+
+// Copier la réponse (Invité)
+function copyResponse() {
+    const responseText = document.getElementById('responseText').value;
+    if (!responseText) {
+        alert('Traitez d\'abord l\'offre');
+        return;
+    }
+    navigator.clipboard.writeText(responseText).then(() => {
+        alert('✅ Réponse copiée ! Envoyez-la à l\'hôte.');
+    }).catch(() => {
+        alert('Copie manuelle : sélectionnez le texte et faites Ctrl+C');
+    });
+}
+
+// ============ FONCTIONS COMMUNES ============
 
 // Envoyer un message
 function sendMessage() {
     const message = messageInput.value.trim();
-    if (!message || connections.length === 0) {
-        if (connections.length === 0) {
-            addSystemMessage('Personne n\'est connecté pour recevoir votre message');
-        }
+    if (!message) return;
+    
+    if (!dataChannel || dataChannel.readyState !== 'open') {
+        addSystemMessage('❌ Pas de connexion active. Attendez que la connexion soit établie.');
         return;
     }
     
-    addMessage(message, true);
-    sendMessageToAll(message);
+    addMessage(message, true, myUsername);
+    dataChannel.send(JSON.stringify({
+        type: 'message',
+        text: message,
+        username: myUsername,
+        timestamp: Date.now()
+    }));
     messageInput.value = '';
     messageInput.focus();
 }
 
 // Ajouter un message à l'interface
-function addMessage(text, isSelf, timestamp = Date.now()) {
+function addMessage(text, isSelf, username) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${isSelf ? 'self' : 'other'}`;
     
-    const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
     messageDiv.innerHTML = `
-        <div class="message-content">${escapeHtml(text)}</div>
-        <div class="message-meta">${time}</div>
+        <div class="message-content">
+            <div>${escapeHtml(text)}</div>
+            <div class="message-meta">
+                ${!isSelf ? `<strong>${escapeHtml(username)}</strong> · ` : ''}
+                ${time}
+            </div>
+        </div>
     `;
     
     messagesDiv.appendChild(messageDiv);
@@ -256,51 +321,27 @@ function addSystemMessage(text) {
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
-// Quitter le salon
-function leaveRoom() {
-    // Fermer toutes les connexions
-    connections.forEach(conn => {
-        if (conn.open) {
-            conn.close();
-        }
-    });
-    connections = [];
-    
-    if (peer) {
-        peer.destroy();
-        peer = null;
+// Mettre à jour le statut
+function updateStatus(elementId, type, message) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.className = `status ${type}`;
+        element.innerHTML = message;
     }
-    
-    // Réinitialiser l'interface
-    chatArea.style.display = 'none';
-    currentRoom = null;
-    messagesDiv.innerHTML = '';
-    connectionStatus.innerHTML = '';
-    
-    // Nettoyer l'URL
-    window.history.pushState({}, '', window.location.pathname);
-    
-    showStatus('Vous avez quitté le salon', 'info');
 }
 
-// Afficher un statut dans la section de création
-function showStatus(message, type) {
-    roomStatus.innerHTML = `<div class="status ${type}">${message}</div>`;
-    setTimeout(() => {
-        if (roomStatus.innerHTML.includes(message)) {
-            roomStatus.innerHTML = '';
-        }
-    }, 5000);
-}
-
-// Générer un ID unique
-function generatePeerId() {
-    return Math.random().toString(36).substring(2, 15);
-}
-
-// Échapper les caractères HTML
+// Échapper le HTML pour éviter les injections
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
+
+// Écouteurs d'événements
+sendBtn.addEventListener('click', sendMessage);
+messageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendMessage();
+});
+
+// Initialiser l'interface
+console.log('Chat P2P prêt !');
